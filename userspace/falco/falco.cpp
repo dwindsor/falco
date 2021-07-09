@@ -824,12 +824,6 @@ int falco_init(int argc, char **argv)
 		engine->add_source(syscall_source, syscall_filter_factory, syscall_formatter_factory);
 		engine->add_source(k8s_audit_source, k8s_audit_filter_factory, k8s_audit_formatter_factory);
 
-		if(list_flds)
-		{
-			list_source_fields(engine, names_only, list_flds_source);
-			return EXIT_SUCCESS;
-		}
-
 		if(disable_sources.size() > 0)
 		{
 			auto it = disable_sources.begin();
@@ -947,12 +941,24 @@ int falco_init(int argc, char **argv)
 			{
 				inspector->set_input_plugin_open_params(p.m_open_params.c_str());
 			}
+
+			// Create a filter factory/formatter factory for this plugin source.
+			// XXX/mstemm this should only happen for source plugins
+			// XXX/mstemm Fill this in after rebase
+			//std::shared_ptr<gen_event_filter_factory> plugin_filter_factory(new sinsp_filter_factory(inspector));
+			//std::shared_ptr<gen_event_formatter_factory> plugin_formatter_factory(new sinsp_evt_formatter_factory(inspector));
 		}
 
 		if(list_plugins)
 		{
 			std::string desc = sinsp_plugin::plugin_infos(inspector);
 			printf("%lu Plugins Loaded:\n\n%s\n", config.m_plugins.size(), desc.c_str());
+			return EXIT_SUCCESS;
+		}
+
+		if(list_flds)
+		{
+			list_source_fields(engine, names_only, list_flds_source);
 			return EXIT_SUCCESS;
 		}
 
