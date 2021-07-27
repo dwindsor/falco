@@ -52,6 +52,8 @@ falco_engine::falco_engine(bool seed_rng, const std::string& alternate_lua_dir)
 	falco_common::init(m_lua_main_filename.c_str(), alternate_lua_dir.c_str());
 	falco_rules::init(m_ls);
 
+	m_required_plugin_versions.clear();
+
 	if(seed_rng)
 	{
 		srandom((unsigned) getpid());
@@ -152,7 +154,7 @@ void falco_engine::load_rules(const string &rules_content, bool verbose, bool al
 		}
 	}
 
-	m_rules->load_rules(rules_content, verbose, all_events, m_extra, m_replace_container_info, m_min_priority, required_engine_version);
+	m_rules->load_rules(rules_content, verbose, all_events, m_extra, m_replace_container_info, m_min_priority, required_engine_version, m_required_plugin_versions);
 }
 
 void falco_engine::load_rules_file(const string &rules_filename, bool verbose, bool all_events)
@@ -427,6 +429,37 @@ void falco_engine::add_filter(std::shared_ptr<gen_event_filter> filter,
 	it->second->add(rule, tags, filter);
 }
 
+bool falco_engine::is_plugin_compatible(const std::string &name,
+					const std::string &version,
+					std::string &required_version)
+{
+	sinsp_plugin::version plugin_version(version.c_str());
+
+	if(!plugin_version.m_valid)
+	{
+		throw falco_exception(string("Plugin version string ") + version + " not valid");
+	}
+
+	if(m_required_plugin_versions.find(name) == m_required_plugin_versions.end())
+	{
+		// No required engine versions, so no restrictions. Compatible.
+		return true;
+	}
+
+	for(auto &rversion : m_required_plugin_versions[name])
+	{
+		sinsp_plugin::version req_version(rversion.c_str());
+		if(req_version.m_version_major > plugin_version.m_version_major)
+		{
+			required_version = rversion;
+			return false;
+		}
+
+	}
+
+	return true;
+}
+
 void falco_engine::clear_filters()
 {
 	m_rulesets.clear();
@@ -436,6 +469,8 @@ void falco_engine::clear_filters()
 		std::shared_ptr<falco_ruleset> ruleset(new falco_ruleset());
 		m_rulesets[it.first] = ruleset;
 	}
+
+	m_required_plugin_versions.clear();
 }
 
 void falco_engine::set_sampling_ratio(uint32_t sampling_ratio)
