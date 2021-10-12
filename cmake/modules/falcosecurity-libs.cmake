@@ -20,8 +20,8 @@ file(MAKE_DIRECTORY ${FALCOSECURITY_LIBS_CMAKE_WORKING_DIR})
 # default below In case you want to test against another falcosecurity/libs version just pass the variable - ie., `cmake
 # -DFALCOSECURITY_LIBS_VERSION=dev ..`
 if(NOT FALCOSECURITY_LIBS_VERSION)
-  set(FALCOSECURITY_LIBS_VERSION "new/plugin-system-api-additions")
-  set(FALCOSECURITY_LIBS_CHECKSUM "SHA256=d880d7437e7f943fb89dc31878eea2b56abbdf56db33e026b095af86a3900c22")
+  set(FALCOSECURITY_LIBS_VERSION "add-plugins-support")
+  set(FALCOSECURITY_LIBS_CHECKSUM "SHA256=3d989ee1fd47930aa57ce1ca0fb1b67090ee60f30f8f47e0eacc2c408dcd9d98")
 endif()
 
 # cd /path/to/build && cmake /path/to/source
