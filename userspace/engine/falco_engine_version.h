@@ -21,5 +21,5 @@ limitations under the License.
 // This is the result of running "falco --list -N | sha256sum" and
 // represents the fields supported by this version of Falco. It's used
 // at build time to detect a changed set of fields.
-#define FALCO_FIELDS_CHECKSUM "8183621f52451d842036eee409e2ed920d9c91bab33e0c4a44e4a871378d103f"
+#define FALCO_FIELDS_CHECKSUM "64c449b28013e400cd4d67c993a253752199d749f820c90c4314946c999c5a9f"
 
