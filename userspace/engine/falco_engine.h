@@ -184,7 +184,7 @@ public:
 	// Configure the engine to support events with the provided
 	// source, with the provided filter factory and formatter factory.
 	//
-	void add_source(std::string &source,
+	void add_source(const std::string &source,
 			std::shared_ptr<gen_event_filter_factory> filter_factory,
 			std::shared_ptr<gen_event_formatter_factory> formatter_factory);
 

@@ -327,9 +327,9 @@ unique_ptr<falco_engine::rule_result> falco_engine::process_event(std::string &s
 	return process_event(source, ev, m_default_ruleset_id);
 }
 
-void falco_engine::add_source(std::string &source,
-		std::shared_ptr<gen_event_filter_factory> filter_factory,
-		std::shared_ptr<gen_event_formatter_factory> formatter_factory)
+void falco_engine::add_source(const std::string &source,
+			      std::shared_ptr<gen_event_filter_factory> filter_factory,
+			      std::shared_ptr<gen_event_formatter_factory> formatter_factory)
 {
 	m_filter_factories[source] = filter_factory;
 	m_format_factories[source] = formatter_factory;
