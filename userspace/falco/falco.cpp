@@ -249,6 +249,7 @@ static std::string read_file(std::string filename)
 uint64_t do_inspect(falco_engine *engine,
 			falco_outputs *outputs,
 			sinsp* inspector,
+		        std::string &event_source,
 			falco_configuration &config,
 			syscall_evt_drop_mgr &sdropmgr,
 			uint64_t duration_to_tot_ns,
@@ -377,7 +378,7 @@ uint64_t do_inspect(falco_engine *engine,
 		// engine, which will match the event against the set
 		// of rules. If a match is found, pass the event to
 		// the outputs.
-		unique_ptr<falco_engine::rule_result> res = engine->process_event(syscall_source, ev);
+		unique_ptr<falco_engine::rule_result> res = engine->process_event(event_source, ev);
 		if(res)
 		{
 			outputs->handle_event(res->evt, res->rule, res->source, res->priority_num, res->format, res->tags);
@@ -924,37 +925,83 @@ int falco_init(int argc, char **argv)
 			k8s_audit_formatter_factory->set_output_format(gen_event_formatter::OF_JSON);
 		}
 
+		// The event source is syscall by default. If an input
+		// plugin was found, the source is the source of that
+		// plugin.
+		std::string event_source = syscall_source;
+
 		std::shared_ptr<sinsp_plugin> input_plugin;
+		std::list<std::shared_ptr<sinsp_plugin>> extractor_plugins;
 		for(auto &p : config.m_plugins)
 		{
-			bool avoid_async = true;
-
 			falco_logger::log(LOG_INFO, "Loading plugin (" + p.m_name + ") from file " + p.m_library_path + "\n");
 
 			std::shared_ptr<sinsp_plugin> plugin = sinsp_plugin::register_plugin(inspector,
-										    p.m_library_path,
-										    (p.m_init_config.empty() ? NULL : (char *)p.m_init_config.c_str()),
-										    avoid_async);
+											     p.m_library_path,
+											     (p.m_init_config.empty() ? NULL : (char *)p.m_init_config.c_str()));
 
 			if(plugin->type() == TYPE_SOURCE_PLUGIN)
 			{
+				sinsp_source_plugin *splugin = static_cast<sinsp_source_plugin *>(plugin.get());
+
 				if(input_plugin)
 				{
 					throw std::invalid_argument(string("Can not load multiple source plugins. ") + input_plugin->name() + " already loaded");
 				}
+
+				input_plugin = plugin;
+				event_source = splugin->event_source();
 
 				inspector->set_input_plugin(p.m_name);
 				if(!p.m_open_params.empty())
 				{
 					inspector->set_input_plugin_open_params(p.m_open_params.c_str());
 				}
-			}
 
-			// Create a filter factory/formatter factory for this plugin source.
-			// XXX/mstemm this should only happen for source plugins
-			// XXX/mstemm Fill this in after rebase
-			//std::shared_ptr<gen_event_filter_factory> plugin_filter_factory(new sinsp_filter_factory(inspector));
-			//std::shared_ptr<gen_event_formatter_factory> plugin_formatter_factory(new sinsp_evt_formatter_factory(inspector));
+			} else {
+				extractor_plugins.push_back(plugin);
+			}
+		}
+
+		// Create a filter factory/formatter factory for the input plugin, if one was loaded.
+		if(input_plugin)
+		{
+			std::shared_ptr<gen_event_filter_factory> plugin_filter_factory(new sinsp_filter_factory(inspector));
+			std::shared_ptr<gen_event_formatter_factory> plugin_formatter_factory(new sinsp_evt_formatter_factory(inspector));
+
+			sinsp_source_plugin *splugin = static_cast<sinsp_source_plugin *>(input_plugin.get());
+
+			engine->add_source(splugin->event_source(), plugin_filter_factory, plugin_formatter_factory);
+		}
+
+		// Create a filter factory/formatter factory for each extractor plugin.
+		for(auto plugin : extractor_plugins)
+		{
+			// If the extractor plugin names compatible sources, create a filter
+			// factory/formatter factory for each compatible source. Otherwise,
+			// explicity tie the factories to the source for the input plugin.
+			sinsp_extractor_plugin *eplugin = static_cast<sinsp_extractor_plugin *>(plugin.get());
+
+			const std::set<std::string> &compat_sources = eplugin->extract_event_sources();
+
+			if(!compat_sources.empty())
+			{
+				for(auto &source : compat_sources)
+				{
+					std::shared_ptr<gen_event_filter_factory> plugin_filter_factory(new sinsp_filter_factory(inspector));
+					std::shared_ptr<gen_event_formatter_factory> plugin_formatter_factory(new sinsp_evt_formatter_factory(inspector));
+					engine->add_source(source, plugin_filter_factory, plugin_formatter_factory);
+				}
+			}
+			else if (input_plugin)
+			{
+				// sinsp_source_plugin *splugin = static_cast<sinsp_source_plugin *>(input_plugin.get());
+
+				// std::shared_ptr<gen_event_filter_factory> plugin_filter_factory(new sinsp_filter_factory(inspector));
+				// std::shared_ptr<gen_event_formatter_factory> plugin_formatter_factory(new sinsp_evt_formatter_factory(inspector));
+
+				// engine->add_source(source, plugin_filter_factory, plugin_formatter_factory);
+			}
 		}
 
 		std::list<sinsp_plugin::info> infos = sinsp_plugin::plugin_infos(inspector);
@@ -1486,6 +1533,7 @@ int falco_init(int argc, char **argv)
 			num_evts = do_inspect(engine,
 					      outputs,
 					      inspector,
+					      event_source,
 					      config,
 					      sdropmgr,
 					      uint64_t(duration_to_tot*ONE_SECOND_IN_NS),

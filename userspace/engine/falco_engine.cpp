@@ -19,6 +19,9 @@ limitations under the License.
 #include <string>
 #include <fstream>
 
+#include <sinsp.h>
+#include <plugin.h>
+
 #include "falco_engine.h"
 #include "falco_utils.h"
 #include "falco_engine_version.h"
